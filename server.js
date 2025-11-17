@@ -11,14 +11,15 @@ const app = express();
 app.use(express.json());
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: "https://ticket-app-topaz.vercel.app",
+    origin: "*", // Printer agent ham ulana olishi uchun
     methods: ["GET", "POST"],
   },
 });
 
-// 🟦 ROOM → ORDER TYPE MAP
+// ROOM FILTER
 const ROOM_FILTER = {
   oshxona: null,
   ekran: null,
@@ -28,11 +29,8 @@ const ROOM_FILTER = {
 };
 
 io.on("connection", (socket) => {
-  console.log("Socket:", socket.id);
+  console.log("🔌 Client connected:", socket.id);
 
-  // ===============================
-  // JOIN ROOM
-  // ===============================
   socket.on("join_room", async (room) => {
     socket.join(room);
     console.log(`${socket.id} joined → ${room}`);
@@ -40,7 +38,6 @@ io.on("connection", (socket) => {
     const filter = ROOM_FILTER[room];
 
     let all;
-
     if (!filter) {
       all = await Order.find({ status: "in_progress" }).sort({ createdAt: -1 });
     } else {
@@ -53,9 +50,7 @@ io.on("connection", (socket) => {
     socket.emit("all_orders", all);
   });
 
-  // ===============================
   // CREATE ORDER
-  // ===============================
   socket.on("create_order", async (data) => {
     try {
       const last = await Order.findOne().sort({ orderId: -1 });
@@ -73,47 +68,40 @@ io.on("connection", (socket) => {
         status: "in_progress",
       });
 
-      // 🔥 Barcha userlarga order chiqsin
+      // KASSA – tasdiq
+      socket.emit("order_confirmed", newOrder);
+
+      // Oshxona/tablo – yangi order
       io.emit("new_order", newOrder);
 
-      // 🔥 LOCAL AGENTLARGA PRINTER UCHUN EVENT
+      // 🔥 MUHIM! PRINT AGENTLARGA SIGNAL
       io.emit("print_order", newOrder);
-
-      // 🔵 Only this client gets confirmation
-      socket.emit("order_confirmed", newOrder);
     } catch (err) {
-      console.error("Order xato:", err);
+      console.error("❌ Order xato:", err);
       socket.emit("order_error", { message: "Xato!" });
     }
   });
 
-  // ===============================
   // UPDATE STATUS
-  // ===============================
   socket.on("update_order_status", async ({ orderId, status }) => {
     const updated = await Order.findOneAndUpdate(
       { orderId },
       { status },
       { new: true }
     );
-
-    if (!updated) return;
-
-    io.emit("order_updated", updated);
+    if (updated) io.emit("order_updated", updated);
   });
 
-  // ===============================
   // DELETE
-  // ===============================
   socket.on("delete_order", async ({ orderId }) => {
     const deleted = await Order.findOneAndDelete({ orderId });
-    if (!deleted) return;
-
-    io.emit("order_deleted", orderId);
+    if (deleted) io.emit("order_deleted", orderId);
   });
 });
 
 const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGODB_URI).then(() => {
-  server.listen(PORT, () => console.log(`🚀 Server: http://localhost:${PORT}`));
+  server.listen(PORT, () =>
+    console.log(`🚀 Server running: http://localhost:${PORT}`)
+  );
 });
