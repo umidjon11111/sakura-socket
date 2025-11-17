@@ -18,11 +18,10 @@ const io = new Server(server, {
   },
 });
 
-
 // 🟦 ROOM → ORDER TYPE MAP
 const ROOM_FILTER = {
-  oshxona: null, // hamma InProgress
-  ekran: null, // hamma InProgress
+  oshxona: null,
+  ekran: null,
   zal: "Zal",
   dastavka: "Dastavka",
   saboy: "Saboy",
@@ -31,6 +30,9 @@ const ROOM_FILTER = {
 io.on("connection", (socket) => {
   console.log("Socket:", socket.id);
 
+  // ===============================
+  // JOIN ROOM
+  // ===============================
   socket.on("join_room", async (room) => {
     socket.join(room);
     console.log(`${socket.id} joined → ${room}`);
@@ -40,10 +42,8 @@ io.on("connection", (socket) => {
     let all;
 
     if (!filter) {
-      // oshxona & ekran → faqat in_progress
       all = await Order.find({ status: "in_progress" }).sort({ createdAt: -1 });
     } else {
-      // zal / dastavka / saboy → orderType bo‘yicha filter
       all = await Order.find({
         OrderType: filter,
         status: "in_progress",
@@ -73,10 +73,13 @@ io.on("connection", (socket) => {
         status: "in_progress",
       });
 
-      // 🔥 Hamma page ko‘rsin
+      // 🔥 Barcha userlarga order chiqsin
       io.emit("new_order", newOrder);
 
-      // 🟩 MUHIM → frontga qaytarilsin!
+      // 🔥 LOCAL AGENTLARGA PRINTER UCHUN EVENT
+      io.emit("print_order", newOrder);
+
+      // 🔵 Only this client gets confirmation
       socket.emit("order_confirmed", newOrder);
     } catch (err) {
       console.error("Order xato:", err);
@@ -97,10 +100,6 @@ io.on("connection", (socket) => {
     if (!updated) return;
 
     io.emit("order_updated", updated);
-  });
-  socket.on("order_confirmed", (order) => {
-    sendToPrinter(order);
-    clearForm();
   });
 
   // ===============================
