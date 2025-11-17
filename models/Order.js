@@ -9,6 +9,16 @@ const orderSchema = new Schema(
       enum: ["new", "in_progress", "done"],
       default: "new",
     },
+    OrderType: {
+      type: String,
+      enum: ["Zal", "Dastavka", "Saboy"],
+      required: true,
+    },
+    customer: {
+      name: String,
+      phone: String,
+      address: String,
+    },
   },
   { timestamps: true }
 );
