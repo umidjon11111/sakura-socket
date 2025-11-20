@@ -3,20 +3,24 @@ const http = require("http");
 const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const Order = require("./models/Order");
-const job = require("./job.js");
 require("dotenv").config();
+
+const job = require("./job.js");
 job.start();
 
 const app = express();
 app.use(express.json());
 
+// ================================
+// SERVER + SOCKET
+// ================================
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// ROOM FILTER
+// XONALAR
 const ROOM_FILTER = {
   oshxona: null,
   ekran: null,
@@ -25,35 +29,38 @@ const ROOM_FILTER = {
   saboy: "Saboy",
 };
 
+// ===============================
+// SOCKET HANDLERS
+// ===============================
 io.on("connection", (socket) => {
-  console.log("🔌 Client connected:", socket.id);
+  console.log("🔌 Client joined:", socket.id);
 
-  // PRINTER agent dan keladi
+  // PRINTER ROOM
   socket.on("join_printer", () => {
     socket.join("printers");
-    console.log(`🖨 Printer joined → printers`);
+    console.log(`🖨 Printer joined → ${socket.id}`);
   });
 
+  // KASSA / ZAL / SABOY / DASTAVKA
   socket.on("join_room", async (room) => {
     socket.join(room);
     console.log(`${socket.id} joined → ${room}`);
 
     const filter = ROOM_FILTER[room];
+    let orders;
 
-    let all;
     if (!filter) {
-      all = await Order.find({ status: "in_progress" }).sort({ createdAt: -1 });
+      orders = await Order.find().sort({ createdAt: -1 });
     } else {
-      all = await Order.find({
-        OrderType: filter,
-        status: "in_progress",
-      }).sort({ createdAt: -1 });
+      orders = await Order.find({ OrderType: filter }).sort({ createdAt: -1 });
     }
 
-    socket.emit("all_orders", all);
+    socket.emit("all_orders", orders);
   });
 
+  // ===============================
   // CREATE ORDER
+  // ===============================
   socket.on("create_order", async (data) => {
     try {
       const last = await Order.findOne().sort({ orderId: -1 });
@@ -62,52 +69,54 @@ io.on("connection", (socket) => {
       const newOrder = await Order.create({
         orderId: nextId,
         OrderType: data.orderType,
-        items: data.cart.map((c) => ({
-          name: c.name,
-          qty: c.qty,
-          price: c.price,
-        })),
+        items: data.cart,
         customer: data.customer,
         status: "in_progress",
       });
 
       socket.emit("order_confirmed", newOrder);
+
+      // Ekran va oshxona uchun
       io.emit("new_order", newOrder);
 
-      // 🔥 Faqat printerlarga jo'natiladi
+      // Printerga faqat bitta signal
       io.to("printers").emit("print_order", newOrder);
     } catch (err) {
-      console.error("❌ Order xato:", err);
-      socket.emit("order_error", { message: "Xato!" });
+      console.error("❌ CREATE ORDER ERROR:", err);
     }
   });
 
-  // UPDATE STATUS
+  // ===============================
+  // UPDATE STATUS (done bo‘lsa ham UI da qoladi)
+  // ===============================
   socket.on("update_order_status", async ({ orderId, status }) => {
     const updated = await Order.findOneAndUpdate(
       { orderId },
       { status },
       { new: true }
     );
-    if (updated) io.emit("order_updated", updated);
+
+    if (updated) {
+      io.emit("order_updated", updated); // UI qayta chiziladi
+    }
   });
 
-  // DELETE
+  // ===============================
+  // DELETE ORDER
+  // ===============================
   socket.on("delete_order", async ({ orderId }) => {
-    const deleted = await Order.findOneAndDelete({ orderId });
-    if (deleted) io.emit("order_deleted", orderId);
+    const del = await Order.findOneAndDelete({ orderId });
+    if (del) io.emit("order_deleted", orderId); // UI dan yo‘qoladi
   });
 
-  // 🔥 KUNLIK HISOBOT (FAQAT PRINTER ROOM GA)
+  // ===============================
+  // DAILY REPORT
+  // ===============================
   socket.on("printer_kunlik_check", (data) => {
-    console.log("📊 Kunlik Hisobot keldi – printerlarga uzatildi!");
     io.to("printers").emit("printer_kunlik_check", data);
   });
 });
 
-const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGODB_URI).then(() => {
-  server.listen(PORT, () =>
-    console.log(`🚀 Server running: http://localhost:${PORT}`)
-  );
+  server.listen(5000, () => console.log("🚀 Server running on :5000"));
 });
