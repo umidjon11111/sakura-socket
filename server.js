@@ -97,6 +97,10 @@ io.on("connection", (socket) => {
     const deleted = await Order.findOneAndDelete({ orderId });
     if (deleted) io.emit("order_deleted", orderId);
   });
+  socket.on("printer_kunlik_check", async (data) => {
+    console.log("📊 Kunlik Hisobot so‘rovi oldim!");
+    io.emit("printer_kunlik_check", data);
+  });
 });
 
 const PORT = process.env.PORT || 5000;
