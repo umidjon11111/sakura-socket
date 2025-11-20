@@ -13,10 +13,7 @@ app.use(express.json());
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: "*", // Printer agent ham ulana olishi uchun
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 // ROOM FILTER
@@ -30,6 +27,12 @@ const ROOM_FILTER = {
 
 io.on("connection", (socket) => {
   console.log("🔌 Client connected:", socket.id);
+
+  // PRINTER agent dan keladi
+  socket.on("join_printer", () => {
+    socket.join("printers");
+    console.log(`🖨 Printer joined → printers`);
+  });
 
   socket.on("join_room", async (room) => {
     socket.join(room);
@@ -68,14 +71,11 @@ io.on("connection", (socket) => {
         status: "in_progress",
       });
 
-      // KASSA – tasdiq
       socket.emit("order_confirmed", newOrder);
-
-      // Oshxona/tablo – yangi order
       io.emit("new_order", newOrder);
 
-      // 🔥 MUHIM! PRINT AGENTLARGA SIGNAL
-      io.emit("print_order", newOrder);
+      // 🔥 Faqat printerlarga jo'natiladi
+      io.to("printers").emit("print_order", newOrder);
     } catch (err) {
       console.error("❌ Order xato:", err);
       socket.emit("order_error", { message: "Xato!" });
@@ -97,9 +97,11 @@ io.on("connection", (socket) => {
     const deleted = await Order.findOneAndDelete({ orderId });
     if (deleted) io.emit("order_deleted", orderId);
   });
-  socket.on("printer_kunlik_check", async (data) => {
-    console.log("📊 Kunlik Hisobot so‘rovi oldim!");
-    io.emit("printer_kunlik_check", data);
+
+  // 🔥 KUNLIK HISOBOT (FAQAT PRINTER ROOM GA)
+  socket.on("printer_kunlik_check", (data) => {
+    console.log("📊 Kunlik Hisobot keldi – printerlarga uzatildi!");
+    io.to("printers").emit("printer_kunlik_check", data);
   });
 });
 
