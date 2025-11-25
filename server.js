@@ -39,13 +39,11 @@ io.on("connection", (socket) => {
   // PRINTER ROOM
   socket.on("join_printer", () => {
     socket.join("printers");
-    console.log(`🖨 Printer joined → ${socket.id}`);
   });
 
-  // ROOMS (Zal, Saboy, Dastavka)
+  // ROOMS
   socket.on("join_room", async (room) => {
     socket.join(room);
-    console.log(`${socket.id} joined → ${room}`);
 
     const filter = ROOM_FILTER[room];
     let orders;
@@ -76,8 +74,8 @@ io.on("connection", (socket) => {
         status: "in_progress",
       });
 
-      socket.emit("order_confirmed", newOrder);
       io.emit("new_order", newOrder);
+      io.emit("daily_report_update"); // 🔥 HISOBOT UCHUN REAL-TIME SIGNAL
 
       io.to("printers").emit("print_order", newOrder);
     } catch (err) {
@@ -95,28 +93,28 @@ io.on("connection", (socket) => {
 
     if (updated) {
       io.emit("order_updated", updated);
+      io.emit("daily_report_update"); // 🔥 HISOB O'ZGARDI
     }
   });
 
   // DELETE ORDER
   socket.on("delete_order", async ({ orderId }) => {
     const del = await Order.findOneAndDelete({ orderId });
-    if (del) io.emit("order_deleted", orderId);
+    if (del) {
+      io.emit("order_deleted", orderId);
+    }
   });
 
-  // ===============================
-  // 🔥 REAL-TIME DAILY REPORT
-  // ===============================
+  // CLOSE DAY (printer)
   socket.on("printer_kunlik_check", (data) => {
-    // Printerlarga yuboramiz
+    // Printerlarga
     io.to("printers").emit("printer_kunlik_check", data);
 
-    // Barcha clientlarga real-time signal
-    io.emit("daily_report_closed", {
-      ok: true,
-      time: Date.now(),
-      message: "Kunlik hisobot yakunlandi",
-    });
+    // Barcha clientlarga
+    io.emit("daily_report_closed");
+
+    // 🔥 Bu ham hisobotni yangilaydi
+    io.emit("daily_report_update");
   });
 });
 
