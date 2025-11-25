@@ -6,6 +6,7 @@ const Order = require("./models/Order");
 require("dotenv").config();
 
 const job = require("./job.js");
+const { default: Karzina } = require("./models/karzina.js");
 job.start();
 
 const app = express();
@@ -64,7 +65,9 @@ io.on("connection", (socket) => {
   socket.on("create_order", async (data) => {
     try {
       const last = await Order.findOne().sort({ orderId: -1 });
-      const nextId = last ? last.orderId + 1 : 1;
+      const lastid = await Karzina.findOne().sort({ orderId: -1 });
+      const nextId =
+        Math.max(last ? last.orderId : 0, lastid ? lastid.orderId : 0) + 1;
 
       const newOrder = await Order.create({
         orderId: nextId,
