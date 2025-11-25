@@ -6,7 +6,7 @@ const Order = require("./models/Order");
 require("dotenv").config();
 
 const job = require("./job.js");
-const { default: Karzina } = require("./models/karzina.js");
+const Karzina = require("./models/karzina.js");
 job.start();
 
 const app = express();

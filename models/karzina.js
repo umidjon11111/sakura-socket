@@ -1,5 +1,4 @@
-import mongoose from "mongoose";
-
+const mongoose = require("mongoose");
 // 🧩 Model (agar oldin yaratilmagan bo‘lsa)
 const KarzinaSchema = new mongoose.Schema(
   {
@@ -26,4 +25,4 @@ const KarzinaSchema = new mongoose.Schema(
 const Karzina =
   mongoose.models.Karzina || mongoose.model("Karzina", KarzinaSchema);
 
-export default Karzina;
+module.exports = Karzina;
