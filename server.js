@@ -39,6 +39,7 @@ io.on("connection", (socket) => {
   // PRINTER ROOM
   socket.on("join_printer", () => {
     socket.join("printers");
+    console.log(`🖨 Printer joined → ${socket.id}`);
   });
 
   // ROOMS
@@ -73,11 +74,10 @@ io.on("connection", (socket) => {
         customer: data.customer,
         status: "in_progress",
       });
-
+      socket.emit("order_confirmed", newOrder);
       io.emit("new_order", newOrder);
-      io.emit("daily_report_update"); // 🔥 HISOBOT UCHUN REAL-TIME SIGNAL
-
       io.to("printers").emit("print_order", newOrder);
+      io.emit("daily_report_update"); // 🔥 HISOBOT UCHUN REAL-TIME SIGNAL
     } catch (err) {
       console.error("❌ CREATE ORDER ERROR:", err);
     }
