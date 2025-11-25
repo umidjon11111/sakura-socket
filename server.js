@@ -42,7 +42,7 @@ io.on("connection", (socket) => {
     console.log(`🖨 Printer joined → ${socket.id}`);
   });
 
-  // KASSA / ZAL / SABOY / DASTAVKA
+  // ROOMS (Zal, Saboy, Dastavka)
   socket.on("join_room", async (room) => {
     socket.join(room);
     console.log(`${socket.id} joined → ${room}`);
@@ -59,13 +59,12 @@ io.on("connection", (socket) => {
     socket.emit("all_orders", orders);
   });
 
-  // ===============================
   // CREATE ORDER
-  // ===============================
   socket.on("create_order", async (data) => {
     try {
       const last = await Order.findOne().sort({ orderId: -1 });
       const lastid = await Karzina.findOne().sort({ orderId: -1 });
+
       const nextId =
         Math.max(last ? last.orderId : 0, lastid ? lastid.orderId : 0) + 1;
 
@@ -78,20 +77,15 @@ io.on("connection", (socket) => {
       });
 
       socket.emit("order_confirmed", newOrder);
-
-      // Ekran va oshxona uchun
       io.emit("new_order", newOrder);
 
-      // Printerga faqat bitta signal
       io.to("printers").emit("print_order", newOrder);
     } catch (err) {
       console.error("❌ CREATE ORDER ERROR:", err);
     }
   });
 
-  // ===============================
-  // UPDATE STATUS (done bo‘lsa ham UI da qoladi)
-  // ===============================
+  // UPDATE STATUS
   socket.on("update_order_status", async ({ orderId, status }) => {
     const updated = await Order.findOneAndUpdate(
       { orderId },
@@ -100,23 +94,29 @@ io.on("connection", (socket) => {
     );
 
     if (updated) {
-      io.emit("order_updated", updated); // UI qayta chiziladi
+      io.emit("order_updated", updated);
     }
   });
 
-  // ===============================
   // DELETE ORDER
-  // ===============================
   socket.on("delete_order", async ({ orderId }) => {
     const del = await Order.findOneAndDelete({ orderId });
-    if (del) io.emit("order_deleted", orderId); // UI dan yo‘qoladi
+    if (del) io.emit("order_deleted", orderId);
   });
 
   // ===============================
-  // DAILY REPORT
+  // 🔥 REAL-TIME DAILY REPORT
   // ===============================
   socket.on("printer_kunlik_check", (data) => {
+    // Printerlarga yuboramiz
     io.to("printers").emit("printer_kunlik_check", data);
+
+    // Barcha clientlarga real-time signal
+    io.emit("daily_report_closed", {
+      ok: true,
+      time: Date.now(),
+      message: "Kunlik hisobot yakunlandi",
+    });
   });
 });
 
